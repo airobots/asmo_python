@@ -1,0 +1,12 @@
+[submodule "client/framework/dojo"]
+	path = client/framework/dojo
+	url = https://github.com/dojo/dojo.git
+    ignore = dirty
+[submodule "client/framework/dijit"]
+	path = client/framework/dijit
+	url = https://github.com/dojo/dijit.git
+    ignore = dirty
+[submodule "client/framework/dojox"]
+	path = client/framework/dojox
+	url = https://github.com/dojo/dojox.git
+    ignore = dirty
