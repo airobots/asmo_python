@@ -1,0 +1,45 @@
+BODY {
+	background-color: #ffffff;
+	color: #333366;
+	font-family: 'times new roman'
+}
+
+H1 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+H2 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+H3 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+H4 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+H5 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+H6 {
+	color: #6666cc;
+	font-family: 'times new roman';
+	text-transform: capitalize
+}
+
+TH {
+	color: #6060cc
+}
