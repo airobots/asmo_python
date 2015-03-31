@@ -1,14 +1,13 @@
 #!/bin/sh -eu
 
-# install python requirements
+# Install python requirements
 
 virtualenv venv
 source venv/bin/activate
 pip install -r < requirements.txt
 
-# install js requirements
+# Install js requirements
 
-mkdir -p client/framework
-
-# download the latest version of each library.
+# Git submodule can download dojo repositiories,
+# but we may also want to check out specific tags for compatibility.
 git submodule update --init --recursive
