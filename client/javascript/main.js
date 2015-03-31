@@ -72,7 +72,7 @@ function run()
 {
     $.ajax({
         type: 'POST',
-        url: 'http://localhost:8000/compete',
+        url: '/compete',
         data: {param: 1}
     }).done(function (output)
     {
@@ -85,7 +85,7 @@ function init()
     var main = document.getElementById('main');
     require(['dojo/request'], function(request)
     {
-        request.get('http://localhost:8000/process', {handleAs: 'json', headers: {'X-Requested-With': null}}).then
+        request.get('/process', {handleAs: 'json', headers: {'X-Requested-With': null}}).then
         (
             function(objects)
             {
