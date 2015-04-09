@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <!--
    ASMO Web Interface
    Author:
@@ -6,24 +6,61 @@
 -->
 <html>
 <head>
-  <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title> ASMO </title>
-  <link rel="stylesheet" type="text/css" href="css/index.css" />
-  <link rel="stylesheet" type="text/css" href="framework/dojox/layout/resources/FloatingPane.css" />
-  <link rel="stylesheet" type="text/css" href="framework/dojox/layout/resources/ResizeHandle.css" />
-  <script type="text/javascript" src="framework/jquery.js"></script>
-  <script type="text/javascript" src="framework/dojox/mobile/deviceTheme.js"></script>
-  <script type="text/javascript" src="framework/dojo/dojo.js"></script>
-  <script type="text/javascript" src="javascript/main.js"></script>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+    <meta http-equiv="cache-control" content="no-cache">
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title> ASMO </title>
+    <link rel="stylesheet" type="text/css" href="framework/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="framework/dojox/layout/resources/FloatingPane.css" />
+    <link rel="stylesheet" type="text/css" href="framework/dojox/layout/resources/ResizeHandle.css" />
+    <link rel="stylesheet" type="text/css" href="css/index.css" />
+    <script type="text/javascript" src="framework/jquery.min.js"></script>
+    <script type="text/javascript" src="framework/bootstrap/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="js/jquery.bootstrap-autohidingnavbar.min.js"></script>
+    <script type="text/javascript" src="framework/dojox/mobile/deviceTheme.js"></script>
+    <script type="text/javascript" src="framework/dojo/dojo.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
 </head>
-<body style="visibility:hidden;" onLoad="init();">
-  <div id="toolbar">
-    <button onclick="run();"><img src="images/run.png" width="50"><br> Run </button>
-  </div>
-  <div id="main"></div>
-  <div id="chart_node" style="width:720px;"></div>
-  <div id="debug"></div>
+<body>
+    <nav class="navbar navbar-default navbar-fixed-top">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#header_nav">
+                    <span class="sr-only"> Toggle navigation </span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/"> ASMO </a>
+                <ul class="nav navbar-nav">
+                    <li>
+                        <a id="start_anchor" class="btn btn-default" tabindex="0">
+                            <img src="media/start.svg" width="20">
+                        </a>
+                    </li>
+                    <li>
+                        <a id="stop_anchor" class="btn btn-default" tabindex="1">
+                            <img src="media/stop.svg" width="20">
+                        </a>
+                    </li>
+                </ul>
+            </div><!-- /.navbar-header -->
+        </div><!-- /.container-fluid -->
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-xs-12 col-sm-4">
+                <div id="main">
+                </div>
+            </div><!-- /.column -->
+            <div class="col-xs-12 col-sm-8">
+                <div id="chart_div"></div><!-- /#time_chart -->
+                <div id="information"></div><!-- /#information -->
+            </div><!-- /.column -->
+        </div><!-- /.row -->
+    </div><!-- /.container-fluid -->
 </body>
 </html>

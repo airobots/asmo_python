@@ -2,6 +2,7 @@
 
 '''
     ASMO Server
+    -----------
     Author:
         Rony Novianto (rony@ronynovianto.com)
 '''
@@ -9,21 +10,21 @@
 import sys
 import getopt
 import time
+import json
 import tornado.web
 import tornado.ioloop
-import json
 
-application_name = 'ASMO'
-version = '0.1'
+__application_name__ = 'Attentive Self-Modifying Architecture'
+__version__ = '0.1'
+ip_address = ''
+port = 12766
+
 process_dict = {}
 memory_dict = {}
 winners = {}
 start_time = 0
 history = {}
 
-def usage(name):
-    print('python', name, '--hostname=[hostname] --port=[port]')
-    
 ### ASMO ###
 
 def calc_total_attention_level(attention_value, boost_value):
@@ -33,7 +34,8 @@ def rank_attention(process_dict):
     return sorted(process_dict.items(), key = lambda x: x[1]['attention_value'] + x[1]['boost_value'], reverse = True)
     
 def choose_winners(ranked_processes, used_resources):
-    #winners = []
+    global winners
+    winners = {}
     actions = []
     
     for (name, details) in ranked_processes:
@@ -48,34 +50,41 @@ def choose_winners(ranked_processes, used_resources):
         if is_available:
             used_resources.extend(details['required_resources'])
             winners[name] = details
-            #winners.append((name, details))
             actions.extend(details['actions'])
             
     return (winners, actions, used_resources)
     
-def post_non_reflex(name, body):
-    if name not in process_dict:
+def post_process(name, body):
+    if name in process_dict:
+        # Update existing process
+        process_dict[name].update(body)
+        reply = {'ok': True}
+    else:
         # Add new process
-        if body.get('attention_value') == None or body.get('boost_value') == None or body.get('actions') == None or body.get('required_resources') == None:
-            reply = {'error': 'missing attention value, boost value, actions or required resources'}
+        if 'priority_level' in body:
+            # reflex
+            required_keys = ['actions', 'required_resources', 'priority_level']
+            error_msg = 'missing actions, resources or priority level'
         else:
+            # non-reflex
+            required_keys = ['actions', 'required_resources', 'attention_value', 'boost_value']
+            error_msg = 'missing actions, resources, attention value or boost value'
+            
+        is_complete = True
+        for key in required_keys:
+            if key not in body:
+                is_complete = False
+                break
+                
+        if is_complete:
             body['name'] = name
+            if 'priority_level' not in body:
+                body['total_attention_level'] = body['attention_value'] + body['boost_value']
             process_dict[name] = body
             reply = {'ok': True}
-    elif body.get('attention_value') == None and body.get('boost_value') == None and body.get('actions') == None and body.get('required_resources') == None:
-        reply = {'error': 'missing attention value, boost value, actions and required resources'}
-    else:
-        # Update existing process
-        if body.get('attention_value') != None:
-            process_dict[name]['attention_value'] = body['attention_value']
-        if body.get('boost_value') != None:
-            process_dict[name]['boost_value'] = body['boost_value']
-        if body.get('actions') != None:
-            process_dict[name]['actions'] = body['actions']
-        if body.get('required_resources') != None:
-            process_dict[name]['required_resources'] = body['required_resources']
-        reply = {'ok': True}
-        
+        else:
+            reply = {'error': error_msg}
+            
     return reply
     
 ### Web ###
@@ -94,7 +103,7 @@ class MainHandler(tornado.web.RequestHandler):
         if uri == 'favicon.ico':
             reply = {}
         elif uri == 'version':
-            reply = {application_name: 'welcome', 'version': version}
+            reply = {application_name: 'welcome', 'version': __version__}
         elif uri == 'process' or uri == 'process/':
             reply = json.dumps(process_dict)
         elif uri == 'winners':
@@ -106,11 +115,12 @@ class MainHandler(tornado.web.RequestHandler):
         
     @tornado.gen.coroutine
     def post(self, uri):
-        global start_time, history
+        global start_time, history, process_dict
         if uri == 'compete':
             duration = time.time() - start_time
             ranked_processes = rank_attention(process_dict)
-            (names, actions, used_resources) = choose_winners(ranked_processes, [])
+            (winners, actions, used_resources) = choose_winners(ranked_processes, [])
+            process_dict = {}
             series = {}
             # history does not need values from ranked_processes
             #   instead, it will also work with values from process_dict
@@ -120,8 +130,7 @@ class MainHandler(tornado.web.RequestHandler):
                 total_attention_level = calc_total_attention_level(details['attention_value'], details['boost_value'])
                 history[name].append({'x': duration, 'y': total_attention_level})
                 series[name] = history[name]
-            #reply = {'names': names, 'actions': actions, 'used_resources': used_resources, 'series': series}
-            reply = {'names': names, 'actions': actions, 'used_resources': used_resources}
+            reply = {'winners': winners, 'actions': actions, 'used_resources': used_resources}
         elif uri == 'reset_time':
             start_time = time.time()
             reply = {'ok', True}
@@ -136,15 +145,17 @@ class MainHandler(tornado.web.RequestHandler):
 class ProcessHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
-        default = {'error': 'process {0} does not exist'.format(uri)}
+        default = {'error': 'process {name} does not exist'.format(name=uri)}
         reply = json.dumps(process_dict.get(uri, default))
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
-        body = json.loads(self.request.body.decode('utf-8'))
-        reply = post_non_reflex(uri, body)
-        print(process_dict)
+        if len(uri) > 0:
+            body = json.loads(self.request.body.decode('utf-8'))
+            reply = post_process(uri, body)
+        else:
+            reply = {'error': 'process name is empty'}
         self.write(reply)
         
     @tornado.gen.coroutine
@@ -153,14 +164,14 @@ class ProcessHandler(tornado.web.RequestHandler):
             process_dict.pop(uri)
             reply = {'ok': True}
         except KeyError:
-            reply = {'error': 'process {0} does not exist'.format(name)}
+            reply = {'error': 'process {name} does not exist'.format(name=uri)}
             
         self.write(reply)
         
 class MemoryHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
-        default = {'error': 'memory {0} does not exist'.format(uri)}
+        default = {'error': 'memory {name} does not exist'.format(name=uri)}
         reply = json.dumps(memory_dict.get(uri, default))
         self.write(reply)
         
@@ -176,13 +187,12 @@ class MemoryHandler(tornado.web.RequestHandler):
             memory_dict.pop(uri)
             reply = {'ok': True}
         except KeyError:
-            reply = {'error': 'memory {0} does not exist'.format(uri)}
+            reply = {'error': 'memory {name} does not exist'.format(name=uri)}
         self.write(reply)
         
 config = [
     (r'/client/(.*)', tornado.web.StaticFileHandler, {'path': 'client'}),
-    (r'/non_reflex/(.*)', ProcessHandler),
-    (r'/reflex/(.*)', ProcessHandler),
+    (r'/process/(.*)', ProcessHandler),
     (r'/memory/(.*)', MemoryHandler),
     (r'/', tornado.web.RedirectHandler, {'url': 'client/index.html'}),
     (r'/(.*)', MainHandler),
@@ -190,28 +200,43 @@ config = [
 
 ### Main ###
 
-if __name__ == '__main__':
+def display_usage():
+    text =  'Usage: python3 {script_file} [OPTION]... \n\n'
+    text += 'Example: \n'
+    text += '  python3 {script_file} --address="0.0.0.0" --port={port} \n\n'
+    text += 'Available options: \n'
+    text += '  -h, --help               display this help and exit \n'
+    text += '  -a, --address=ADDRESS    address \n'
+    text += '  -p, --port=PORT          port \n'
+    text = text.format(script_file = sys.argv[0], port = port)
+    print(text)
+    
+def main():
+    global ip_address, port
+    
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], 'hn:p:', ['help', 'hostname=', 'port='])
+        (options_and_values, arguments) = getopt.getopt(sys.argv[1:], 'ha:p:', ['help', 'address=', 'port='])
     except getopt.GetoptError as err:
-        print(str(err))
-        usage(sys.argv[0])
+        print(err)
+        display_usage()
         sys.exit(2)
         
-    hostname = ''
-    port = 12766
-    
-    for (opt, arg) in opts:
-        if opt in ('-h', '--help'):
-            usage(sys.argv[0])
+    for (option, value) in options_and_values:
+        if option in ('-h', '--help'):
+            display_usage()
             sys.exit()
-        elif opt in ('-n', '--hostname'):
-            hostname = arg
-        elif opt in ('-p', '--port'):
-            port = arg
+        elif option in ('-a', '--address'):
+            ip_address = value
+        elif option in ('-p', '--port'):
+            port = value
             
     application = tornado.web.Application(config)
-    application.listen(port)
-    print('Serving on port:', port)
+    application.listen(port, address=ip_address)
+    address_text = ip_address
+    if address_text == '': address_text = 'localhost'
+    print('Serving on {address}:{port}'.format(address=address_text, port=port))
     start_time = time.time()
     tornado.ioloop.IOLoop.instance().start()
+    
+if __name__ == '__main__':
+    main()
