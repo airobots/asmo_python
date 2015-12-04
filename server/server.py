@@ -12,18 +12,8 @@ import getopt
 import time
 import json
 import tornado.web
+import tornado.httpserver
 import tornado.ioloop
-
-__application_name__ = 'Attentive Self-Modifying Architecture'
-__version__ = '0.1'
-ip_address = ''
-port = 12766
-
-process_dict = {}
-memory_dict = {}
-winners = {}
-start_time = 0
-history = {}
 
 ### ASMO ###
 
@@ -34,9 +24,8 @@ def rank_attention(process_dict):
     return sorted(process_dict.items(), key = lambda x: x[1]['attention_value'] + x[1]['boost_value'], reverse = True)
     
 def choose_winners(ranked_processes, used_resources):
-    global winners
     winners = {}
-    actions = []
+    actions = {}
     
     for (name, details) in ranked_processes:
         # Check if required resources are available
@@ -50,11 +39,11 @@ def choose_winners(ranked_processes, used_resources):
         if is_available:
             used_resources.extend(details['required_resources'])
             winners[name] = details
-            actions.extend(details['actions'])
+            actions.update(details['actions'])
             
     return (winners, actions, used_resources)
     
-def post_process(name, body):
+def post_process(process_dict, name, body):
     if name in process_dict:
         # Update existing process
         process_dict[name].update(body)
@@ -79,20 +68,31 @@ def post_process(name, body):
         if is_complete:
             body['name'] = name
             if 'priority_level' not in body:
-                body['total_attention_level'] = body['attention_value'] + body['boost_value']
+                body['total_attention_level'] = calc_total_attention_level(body['attention_value'], body['boost_value'])
+                
             process_dict[name] = body
             reply = {'ok': True}
         else:
             reply = {'error': error_msg}
             
-    return reply
+    return (process_dict, reply)
     
 ### Web ###
 
 # Sample:
-# process_dict = {'chase_ball': {'boost_value': 1, 'name': 'chase_ball', 'attention_value': 10}, 'return_defense': {'boost_value': 5, 'name': 'return_defense', 'attention_value': 8}}
-# curl -X PUT http://localhost:8000/process/chase_ball -H 'content-type: application/json' --data '{"attention_value": 10, "boost_value": 1, "required_resources": ["/leg/left", "/leg/right"], "actions": ["chase_ball(0.2, 0.0, 0.0)"]}'
-# curl -X PUT http://localhost:8000/process/return_defense -H 'content-type: application/json' --data '{"attention_value": 8, "boost_value": 5, "required_resources": ["/leg/left", "/leg/right"], "actions": ["return_defense(-0.2, 0.0, 0.0)"]}'
+# process_dict = {'name1': {'boost_value': 1, 'name': 'name1', 'attention_value': 10}, 'name2': {'boost_value': 5, 'name': 'name2', 'attention_value': 8}}
+# curl -X POST http://localhost:12766/process/name1 -H 'content-type: application/json' --data '{"attention_value": 10, "boost_value": 1, "required_resources": ["/leg/left", "/leg/right"], "actions": ["action1(0.2, 0.0, 0.0)"]}'
+# curl -X POST http://localhost:12766/process/name2 -H 'content-type: application/json' --data '{"attention_value": 8, "boost_value": 5, "required_resources": ["/leg/left", "/leg/right"], "actions": ["action2(-0.2, 0.0, 0.0)"]}'
+
+class Application(tornado.web.Application):
+    def __init__(self, options):
+        self.process_dict = {}
+        self.memory_dict = {}
+        self.winners = {}
+        self.start_time = 0
+        self.history = {}
+        tornado.web.Application.__init__(self, **options)
+        
 class MainHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def set_default_headers(self):
@@ -103,9 +103,9 @@ class MainHandler(tornado.web.RequestHandler):
         if uri == 'favicon.ico':
             reply = {}
         elif uri == 'version':
-            reply = {application_name: 'welcome', 'version': __version__}
-        elif uri == 'process' or uri == 'process/':
-            reply = json.dumps(process_dict)
+            reply = {_application_name_: 'welcome', 'version': _version_}
+        elif uri in ['process', 'process/']:
+            reply = json.dumps(self.application.process_dict)
         elif uri == 'winners':
             reply = json.dumps(winners)
         else:
@@ -115,27 +115,25 @@ class MainHandler(tornado.web.RequestHandler):
         
     @tornado.gen.coroutine
     def post(self, uri):
-        global start_time, history, process_dict
         if uri == 'compete':
-            duration = time.time() - start_time
-            ranked_processes = rank_attention(process_dict)
-            (winners, actions, used_resources) = choose_winners(ranked_processes, [])
-            process_dict = {}
+            duration = time.time() - self.application.start_time
+            ranked_processes = rank_attention(self.application.process_dict)
+            (self.application.winners, actions, used_resources) = choose_winners(ranked_processes, [])
+            self.application.process_dict = {}
             series = {}
             # history does not need values from ranked_processes
             #   instead, it will also work with values from process_dict
             #   however, processes used to determine the winners should be the same with processes used to record in history
             for (name, details) in ranked_processes:
-                history.setdefault(name, [])
-                total_attention_level = calc_total_attention_level(details['attention_value'], details['boost_value'])
-                history[name].append({'x': duration, 'y': total_attention_level})
-                series[name] = history[name]
-            reply = {'winners': winners, 'actions': actions, 'used_resources': used_resources}
+                self.application.history.setdefault(name, [])
+                self.application.history[name].append({'x': duration, 'y': details['total_attention_level']})
+                series[name] = self.application.history[name]
+            reply = {'winners': self.application.winners, 'actions': actions, 'used_resources': used_resources}
         elif uri == 'reset_time':
-            start_time = time.time()
+            self.application.start_time = time.time()
             reply = {'ok', True}
         elif uri == 'reset_history':
-            history = []
+            self.application.history = []
             reply = {'ok', True}
         else:
             reply = {'error': 'invalid url'}
@@ -146,14 +144,14 @@ class ProcessHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
         default = {'error': 'process {name} does not exist'.format(name=uri)}
-        reply = json.dumps(process_dict.get(uri, default))
+        reply = json.dumps(self.application.process_dict.get(uri, default))
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
         if len(uri) > 0:
             body = json.loads(self.request.body.decode('utf-8'))
-            reply = post_process(uri, body)
+            (self.application.process_dict, reply) = post_process(self.application.process_dict, uri, body)
         else:
             reply = {'error': 'process name is empty'}
         self.write(reply)
@@ -161,7 +159,7 @@ class ProcessHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def delete(self, uri):
         try:
-            process_dict.pop(uri)
+            self.application.process_dict.pop(uri)
             reply = {'ok': True}
         except KeyError:
             reply = {'error': 'process {name} does not exist'.format(name=uri)}
@@ -172,70 +170,85 @@ class MemoryHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
         default = {'error': 'memory {name} does not exist'.format(name=uri)}
-        reply = json.dumps(memory_dict.get(uri, default))
+        reply = json.dumps(self.application.memory_dict.get(uri, default))
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
-        memory_dict[uri] = json.loads(self.request.body.decode('utf-8'))
+        self.application.memory_dict[uri] = json.loads(self.request.body.decode('utf-8'))
         reply = {'ok': True}
         self.write(reply)
         
     @tornado.gen.coroutine
     def delete(self, uri):
         try:
-            memory_dict.pop(uri)
+            self.application.memory_dict.pop(uri)
             reply = {'ok': True}
         except KeyError:
             reply = {'error': 'memory {name} does not exist'.format(name=uri)}
         self.write(reply)
         
-config = [
+### Main ###
+
+_application_name_ = 'Attentive Self-Modifying Architecture'
+_version_ = '0.1'
+_handlers = [
     (r'/client/(.*)', tornado.web.StaticFileHandler, {'path': 'client'}),
     (r'/process/(.*)', ProcessHandler),
     (r'/memory/(.*)', MemoryHandler),
     (r'/', tornado.web.RedirectHandler, {'url': 'client/index.html'}),
     (r'/(.*)', MainHandler),
 ]
+_default_settings = {
+    'server_address': '',
+    'server_port': 12766,
+    'handlers': _handlers,
+}
 
-### Main ###
-
-def display_usage():
+def display_usage(default_settings):
     text =  'Usage: python3 {script_file} [OPTION]... \n\n'
     text += 'Example: \n'
-    text += '  python3 {script_file} --address="0.0.0.0" --port={port} \n\n'
+    text += '  python3 {script_file} --address="{server_address}" --port={server_port} \n\n'
     text += 'Available options: \n'
     text += '  -h, --help               display this help and exit \n'
-    text += '  -a, --address=ADDRESS    address \n'
-    text += '  -p, --port=PORT          port \n'
-    text = text.format(script_file = sys.argv[0], port = port)
+    text += '  -a, --address=ADDRESS    server IP address (default {server_address}) \n'
+    text += '  -p, --port=PORT          server port (default {server_port}) \n'
+    text = text.format(script_file = sys.argv[0], **default_settings)
     print(text)
     
-def main():
-    global ip_address, port
-    
+def parse_options(default_settings):
     try:
         (options_and_values, arguments) = getopt.getopt(sys.argv[1:], 'ha:p:', ['help', 'address=', 'port='])
-    except getopt.GetoptError as err:
-        print(err)
-        display_usage()
+    except getopt.GetoptError as error:
+        print(error)
+        display_usage(default_settings)
         sys.exit(2)
+    except:
+        print(sys.exc_info()[0])
+        raise
         
+    options = dict(default_settings)
+    
     for (option, value) in options_and_values:
         if option in ('-h', '--help'):
-            display_usage()
+            display_usage(default_settings)
             sys.exit()
         elif option in ('-a', '--address'):
-            ip_address = value
+            options['server_address'] = value
         elif option in ('-p', '--port'):
-            port = value
+            options['server_port'] = value
             
-    application = tornado.web.Application(config)
-    application.listen(port, address=ip_address)
-    address_text = ip_address
+    return options
+    
+def main():
+    options = parse_options(_default_settings)
+    application = Application(options)
+    server = tornado.httpserver.HTTPServer(application)
+    application.listen(options['server_port'], address=options['server_address'])
+    address_text = options['server_address']
     if address_text == '': address_text = 'localhost'
-    print('Serving on {address}:{port}'.format(address=address_text, port=port))
-    start_time = time.time()
+    print('Serving on {address}:{port}'.format(address=address_text, port=options['server_port']))
+    application.start_time = time.time()
     tornado.ioloop.IOLoop.instance().start()
     
 if __name__ == '__main__':
