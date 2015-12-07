@@ -22,8 +22,8 @@ def run(p):
         arms_positions = determine_arms_positions(drums_position)
         p.write_data('smokey/play_drums/arms_positions', arms_positions)
         p.actions = {
-            'move_head': drums_position,
-            'move_arms': arms_positions
+            'echo move_head': drums_position,
+            'echo move_arms': arms_positions
         }
         p.required_resources = ['smokey/head', 'smokey/arms/left', 'smokey/arms/right']
         p.propose(attention_value=50.0)

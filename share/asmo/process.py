@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+
 '''
     ASMO Process
     Author:
         Rony Novianto (rony@ronynovianto.com)
 '''
 
+import asmo.configuration
 import asmo.interface
 
 class NonReflexProcess:
@@ -28,12 +31,13 @@ class NonReflexProcess:
         if attention_value: self.attention_value = attention_value
         content = \
         {
-            "attention_value": self.attention_value,
-            "boost_value": self.boost_value,
-            "required_resources": self.required_resources,
-            "actions": self.actions
+            asmo.configuration.attention_value_key: self.attention_value,
+            asmo.configuration.boost_value_key: self.boost_value,
+            asmo.configuration.required_resources_key: self.required_resources,
+            asmo.configuration.actions_key: self.actions
         }
-        return asmo.interface.post(self.host + '/process/' + self.process_name, content)
+        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.process_uri, self.process_name)
+        return asmo.interface.post(url, content)
         
     def propose_with_weights(self, objective_weight=None, subjective_weight=None):
         if objective_weight: self.objective_weight = objective_weight
@@ -41,15 +45,18 @@ class NonReflexProcess:
         self.calculate_attention_value()
         content = \
         {
-            "attention_value": self.attention_value,
-            "boost_value": self.boost_value,
-            "required_resources": self.required_resources,
-            "actions": self.actions
+            asmo.configuration.attention_value_key: self.attention_value,
+            asmo.configuration.boost_value_key: self.boost_value,
+            asmo.configuration.required_resources_key: self.required_resources,
+            asmo.configuration.actions_key: self.actions
         }
-        return asmo.interface.post(self.host + '/process/' + self.process_name, content)
+        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.process_uri, self.process_name)
+        return asmo.interface.post(url, content)
         
     def read_data(self, location, is_async=False):
-        return asmo.interface.get(self.host + '/memory/' + location, is_async)
+        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
+        return asmo.interface.get(url, is_async)
         
     def write_data(self, location, content):
-        return asmo.interface.post(self.host + '/memory/' + location, content)
+        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
+        return asmo.interface.post(url, content)
