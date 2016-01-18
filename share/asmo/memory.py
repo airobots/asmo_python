@@ -7,16 +7,28 @@
 '''
 
 import asmo.configuration
-import asmo.interface
+import asmo.web_interface
+
+_dict = {}
 
 class Memory:
     def __init__(self, host):
         self.host = host
         
-    def read_data(self, location, is_async=False):
-        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
-        return asmo.interface.get(url, is_async)
+    def _local_read_data(self, location, is_async=False):
+        return _dict.get(location)
         
-    def write_data(self, location, content, is_async=False):
-        url = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
-        return asmo.interface.post(url, content, is_async)
+    def _local_write_data(self, location, content, is_async=False):
+        _dict[location] = content
+        return {'ok': True}
+        
+    def _web_read_data(self, location, is_async=False):
+        uri = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
+        return asmo.web_interface.get(uri, is_async)
+        
+    def _web_write_data(self, location, content, is_async=False):
+        uri = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
+        return asmo.web_interface.post(uri, content, is_async)
+        
+    read_data = _web_read_data
+    write_data = _web_write_data

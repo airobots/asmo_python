@@ -15,83 +15,70 @@ import tornado.web
 import tornado.httpserver
 import tornado.ioloop
 
+import asmo
+
 ### ASMO ###
 
-def calc_total_attention_level(attention_value, boost_value):
-    return attention_value + boost_value
-    
-def rank_attention(process_dict):
-    return sorted(process_dict.items(), key = lambda x: x[1]['attention_value'] + x[1]['boost_value'], reverse = True)
-    
-def choose_winners(ranked_processes, used_resources):
-    winners = {}
-    actions = {}
-    
-    for (name, details) in ranked_processes:
-        # Check if required resources are available
-        is_available = True
-        for resource in details['required_resources']:
-            if resource in used_resources:
-                is_available = False
-                break
-                
-        # Choose as a winner if required resources are available
-        if is_available:
-            used_resources.extend(details['required_resources'])
-            winners[name] = details
-            actions.update(details['actions'])
-            
-    return (winners, actions, used_resources)
-    
-def post_process(process_dict, name, body):
-    if name in process_dict:
-        # Update existing process
-        process_dict[name].update(body)
+def post_process(name, body):
+    required_keys = set([asmo.configuration.priority_level_key, asmo.configuration.attention_value_key, asmo.configuration.boost_value_key, asmo.configuration.required_resources_key, asmo.configuration.actions_key])
+    keys_difference = required_keys - set(body.keys())
+    if keys_difference == set([asmo.configuration.attention_value_key, asmo.configuration.boost_value_key]):
+        # Reflex process
+        body['name'] = name
+        asmo.process._reflexes.setdefault(name, {})
+        asmo.process._reflexes[name].update(body)
+        reply = {'ok': True}
+    elif keys_difference == set([asmo.configuration.priority_level_key]):
+        # Non-reflex process
+        body['name'] = name
+        asmo.attention.set_total_attention_level((name, body))
+        #body[asmo.configuration.total_attention_level_key] = asmo.attention.set_total_attention_level(body[asmo.configuration.attention_value_key], body[asmo.configuration.boost_value_key])
+        asmo.process._non_reflexes.setdefault(name, {})
+        asmo.process._non_reflexes[name].update(body)
         reply = {'ok': True}
     else:
-        # Add new process
-        if 'priority_level' in body:
-            # reflex
-            required_keys = ['actions', 'required_resources', 'priority_level']
-            error_msg = 'missing actions, resources or priority level'
-        else:
-            # non-reflex
-            required_keys = ['actions', 'required_resources', 'attention_value', 'boost_value']
-            error_msg = 'missing actions, resources, attention value or boost value'
+        # Incomplete data
+        reply = {'error': error_msg}
+        
+    '''
+    # Add new process
+    if 'priority_level' in body:
+        # reflex
+        required_keys = set(['actions', 'required_resources', 'priority_level'])
+        error_msg = 'missing actions, resources or priority level'
+    else:
+        # non-reflex
+        required_keys = set(['actions', 'required_resources', 'attention_value', 'boost_value'])
+        error_msg = 'missing actions, resources, attention value or boost value'
+        
+    is_complete = True
+    for key in required_keys:
+        if key not in body:
+            is_complete = False
+            break
             
-        is_complete = True
-        for key in required_keys:
-            if key not in body:
-                is_complete = False
-                break
-                
-        if is_complete:
-            body['name'] = name
-            if 'priority_level' not in body:
-                body['total_attention_level'] = calc_total_attention_level(body['attention_value'], body['boost_value'])
-                
-            process_dict[name] = body
-            reply = {'ok': True}
-        else:
-            reply = {'error': error_msg}
-            
-    return (process_dict, reply)
+    if is_complete:
+        body['name'] = name
+        if 'priority_level' not in body:
+            body['total_attention_level'] = calc_total_attention_level(body['attention_value'], body['boost_value'])
+        process_dict[name] = body
+        reply = {'ok': True}
+    else:
+        reply = {'error': error_msg}
+    '''
+    return reply
     
 ### Web ###
 
 # Sample:
-# process_dict = {'name1': {'boost_value': 1, 'name': 'name1', 'attention_value': 10}, 'name2': {'boost_value': 5, 'name': 'name2', 'attention_value': 8}}
+# non_reflex = {'name1': {'boost_value': 1, 'name': 'name1', 'attention_value': 10}, 'name2': {'boost_value': 5, 'name': 'name2', 'attention_value': 8}}
 # curl -X POST http://localhost:12766/process/name1 -H 'content-type: application/json' --data '{"attention_value": 10, "boost_value": 1, "required_resources": ["/leg/left", "/leg/right"], "actions": ["action1(0.2, 0.0, 0.0)"]}'
 # curl -X POST http://localhost:12766/process/name2 -H 'content-type: application/json' --data '{"attention_value": 8, "boost_value": 5, "required_resources": ["/leg/left", "/leg/right"], "actions": ["action2(-0.2, 0.0, 0.0)"]}'
 
 class Application(tornado.web.Application):
     def __init__(self, options):
-        self.process_dict = {}
-        self.memory_dict = {}
-        self.winners = {}
-        self.start_time = 0
-        self.history = {}
         tornado.web.Application.__init__(self, **options)
+        self.attention = asmo.attention.LocalAttention('')
         
 class MainHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
@@ -105,53 +92,42 @@ class MainHandler(tornado.web.RequestHandler):
         elif uri == 'version':
             reply = {_application_name_: 'welcome', 'version': _version_}
         elif uri in ['process', 'process/']:
-            reply = json.dumps(self.application.process_dict)
+            processes = self.application.attention.get_all_processes()
+            reply = json.dumps(processes)
         elif uri == 'winners':
-            reply = json.dumps(winners)
+            reply = json.dumps(asmo.attention._winners)
         else:
             reply = {'error': 'invalid url'}
-            
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
         if uri == 'compete':
-            duration = time.time() - self.application.start_time
-            ranked_processes = rank_attention(self.application.process_dict)
-            (self.application.winners, actions, used_resources) = choose_winners(ranked_processes, [])
-            self.application.process_dict = {}
-            series = {}
-            # history does not need values from ranked_processes
-            #   instead, it will also work with values from process_dict
-            #   however, processes used to determine the winners should be the same with processes used to record in history
-            for (name, details) in ranked_processes:
-                self.application.history.setdefault(name, [])
-                self.application.history[name].append({'x': duration, 'y': details['total_attention_level']})
-                series[name] = self.application.history[name]
-            reply = {'winners': self.application.winners, 'actions': actions, 'used_resources': used_resources}
+            reply = self.application.attention.compete()
         elif uri == 'reset_time':
-            self.application.start_time = time.time()
+            asmo.attention._start_time = time.time()
             reply = {'ok', True}
         elif uri == 'reset_history':
-            self.application.history = []
+            asmo.attention._history = {}
             reply = {'ok', True}
         else:
             reply = {'error': 'invalid url'}
-            
         self.write(reply)
         
 class ProcessHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
         default = {'error': 'process {name} does not exist'.format(name=uri)}
-        reply = json.dumps(self.application.process_dict.get(uri, default))
+        non_reflex = asmo.process._non_reflexes.get(uri, default)
+        reflex = asmo.process._reflexes.get(uri, non_reflex)
+        reply = json.dumps(reflex)
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
         if len(uri) > 0:
             body = json.loads(self.request.body.decode('utf-8'))
-            (self.application.process_dict, reply) = post_process(self.application.process_dict, uri, body)
+            reply = post_process(uri, body)
         else:
             reply = {'error': 'process name is empty'}
         self.write(reply)
@@ -159,30 +135,32 @@ class ProcessHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def delete(self, uri):
         try:
-            self.application.process_dict.pop(uri)
+            if uri in asmo.process._reflex:
+                asmo.process._reflex.pop(uri)
+            else:
+                asmo.process._non_reflex.pop(uri)
             reply = {'ok': True}
         except KeyError:
             reply = {'error': 'process {name} does not exist'.format(name=uri)}
-            
         self.write(reply)
         
 class MemoryHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, uri):
         default = {'error': 'memory {name} does not exist'.format(name=uri)}
-        reply = json.dumps(self.application.memory_dict.get(uri, default))
+        reply = json.dumps(asmo.memory._dict.get(uri, default))
         self.write(reply)
         
     @tornado.gen.coroutine
     def post(self, uri):
-        self.application.memory_dict[uri] = json.loads(self.request.body.decode('utf-8'))
+        asmo.memory._dict[uri] = json.loads(self.request.body.decode('utf-8'))
         reply = {'ok': True}
         self.write(reply)
         
     @tornado.gen.coroutine
     def delete(self, uri):
         try:
-            self.application.memory_dict.pop(uri)
+            asmo.memory._dict.pop(uri)
             reply = {'ok': True}
         except KeyError:
             reply = {'error': 'memory {name} does not exist'.format(name=uri)}
@@ -248,7 +226,6 @@ def main():
     address_text = options['server_address']
     if address_text == '': address_text = 'localhost'
     print('Serving on {address}:{port}'.format(address=address_text, port=options['server_port']))
-    application.start_time = time.time()
     tornado.ioloop.IOLoop.instance().start()
     
 if __name__ == '__main__':

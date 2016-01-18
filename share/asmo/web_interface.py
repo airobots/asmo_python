@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-    ASMO Interface
+    ASMO Web Interface
     Author:
         Rony Novianto (rony@ronynovianto.com)
 '''
