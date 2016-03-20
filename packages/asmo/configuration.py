@@ -7,7 +7,7 @@
 '''
 
 # Run web to support any programming language via RESTful web service
-# Run local if a higher performance is required (e.g. to use with machine learning)
+# Run local if a higher performance is required (e.g. using ASMO with machine learning)
 is_running_local = False
 host = 'http://localhost:12766'
 

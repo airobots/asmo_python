@@ -57,16 +57,22 @@ class NonReflexProcess(asmo.memory.Memory):
         self.subjective_weight = 0.0
         self.attention_value = 0.0
         self.boost_value = 0.0
+        self._total_attention_level = 0.0
         self.required_resources = []
         self.actions = []
         self.run = run_function
         
+    def _update_total_attention_level(self):
+        self._total_attention_level = self.attention_value + self.boost_value
+        
     def _local_propose(self, attention_value=None):
         if attention_value: self.attention_value = attention_value
+        self._update_total_attention_level()
         _non_reflexes[self.process_name] = \
         {
             asmo.configuration.attention_value_key: self.attention_value,
             asmo.configuration.boost_value_key: self.boost_value,
+            asmo.configuration.total_attention_level_key: self._total_attention_level,
             asmo.configuration.required_resources_key: self.required_resources,
             asmo.configuration.actions_key: self.actions
         }
@@ -75,11 +81,13 @@ class NonReflexProcess(asmo.memory.Memory):
     def _local_propose_with_weights(self, objective_weight=None, subjective_weight=None):
         if objective_weight: self.objective_weight = objective_weight
         if subjective_weight: self.subjective_weight = subjective_weight
-        self.calculate_attention_value()
+        self.update_attention_value()
+        self._update_total_attention_level()
         _non_reflexes[self.process_name] = \
         {
             asmo.configuration.attention_value_key: self.attention_value,
             asmo.configuration.boost_value_key: self.boost_value,
+            asmo.configuration.total_attention_level_key: self._total_attention_level,
             asmo.configuration.required_resources_key: self.required_resources,
             asmo.configuration.actions_key: self.actions
         }
@@ -100,7 +108,7 @@ class NonReflexProcess(asmo.memory.Memory):
     def _web_propose_with_weights(self, objective_weight=None, subjective_weight=None):
         if objective_weight: self.objective_weight = objective_weight
         if subjective_weight: self.subjective_weight = subjective_weight
-        self.calculate_attention_value()
+        self.update_attention_value()
         content = \
         {
             asmo.configuration.attention_value_key: self.attention_value,
@@ -111,7 +119,7 @@ class NonReflexProcess(asmo.memory.Memory):
         uri = '{0}/{1}/{2}'.format(self.host, asmo.configuration.process_uri, self.process_name)
         return asmo.web_interface.post(uri, content)
         
-    def calculate_attention_value(self):
+    def update_attention_value(self):
         self.attention_value = self.accumulation_rate * self.attention_value + self.objective_rate * self.objective_weight + self.subjective_rate * self.subjective_weight
         
     propose = _web_propose

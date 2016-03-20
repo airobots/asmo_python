@@ -41,7 +41,7 @@ def run(attention, processes, options):
     
 def main(options):
     asmo.set_local_run()
-    attention = asmo.LocalAttention('http://localhost:12766')
+    attention = asmo.LocalAttention('attention_name')
     print('[ OK ] Start custom_controller')
     processes = reinit_processes('', options)
     while run(attention, processes, options): time.sleep(0.5)

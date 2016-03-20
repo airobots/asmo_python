@@ -1,0 +1,8 @@
+graft packages
+
+include LICENSE.txt
+include *.rst
+graft examples
+graft virtualenv
+
+global-exclude *.pyc

@@ -9,6 +9,7 @@
 
 import sys
 import getopt
+import argparse
 import time
 import json
 import tornado.web
@@ -218,7 +219,13 @@ def parse_options(default_settings):
             
     return options
     
-def main():
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--address', default='', type=str)
+    parser.add_argument('-p', '--port', default=12766, type=int)
+    return parser.parse_args()
+    
+def main(arguments):
     options = parse_options(_default_settings)
     application = Application(options)
     server = tornado.httpserver.HTTPServer(application)
@@ -229,4 +236,5 @@ def main():
     tornado.ioloop.IOLoop.instance().start()
     
 if __name__ == '__main__':
-    main()
+    arguments = parse_arguments()
+    main(arguments)

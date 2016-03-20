@@ -1,2 +1,4 @@
-certifi==14.5.14
-tornado==4.1
+backports-abc>=0.4
+requests>=2.9.1
+requests-futures>=0.9.7
+tornado>=4.3

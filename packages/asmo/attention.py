@@ -40,8 +40,8 @@ class LocalAttention:
         duration = time.time() - _start_time
         ranked_processes = rank_attention(asmo.process._reflexes, asmo.process._non_reflexes)
         (_winners, actions, used_resources) = choose_winners(ranked_processes, [])
-        asmo.process._reflexes.clear()
-        asmo.process._non_reflexes.clear()
+        asmo.process._reflexes = {}
+        asmo.process._non_reflexes = {}
         series = {}
         # history does not need values from ranked_processes
         #   instead, it will also work with values from asmo.process._reflexes and asmo.process._non_reflexes
