@@ -1,34 +1,38 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+#-*- coding: utf-8 -*-
 
-'''
-    ASMO's Memory
-    Author:
-        Rony Novianto (rony@ronynovianto.com)
-'''
+"""
+ASMO Memory
+-----------
 
-import asmo.configuration
-import asmo.web_interface
+Author:
+
+* Rony Novianto (rony@ronynovianto.com)
+"""
+
+from . import configuration, web_interface
 
 _dict = {}
 
-class Memory:
+class LocalMemory:
+    def get(self, location, default=None):
+        return _dict.get(location, default)
+        
+    def set(self, location, content):
+        _dict[location] = content
+        
+        
+class WebMemory:
     def __init__(self, host):
         self.host = host
         
-    def _local_read_data(self, location, is_async=False):
-        return _dict.get(location)
+    def get(self, location, is_async=False):
+        uri = '{0}/{1}/{2}'.format(self.host, configuration.memory_uri, location)
+        return web_interface.get(uri, is_async)
         
-    def _local_write_data(self, location, content, is_async=False):
-        _dict[location] = content
-        return {'ok': True}
+    def set(self, location, content, is_async=False):
+        uri = '{0}/{1}/{2}'.format(self.host, configuration.memory_uri, location)
+        return web_interface.post(uri, content, is_async)
         
-    def _web_read_data(self, location, is_async=False):
-        uri = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
-        return asmo.web_interface.get(uri, is_async)
         
-    def _web_write_data(self, location, content, is_async=False):
-        uri = '{0}/{1}/{2}'.format(self.host, asmo.configuration.memory_uri, location)
-        return asmo.web_interface.post(uri, content, is_async)
-        
-    read_data = _web_read_data
-    write_data = _web_write_data
+Memory = WebMemory

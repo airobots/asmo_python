@@ -1,5 +1,8 @@
-.settings
-.gitignore
-.project
-.pydevproject
-*.pyc
+__pycache__
+.pyc
+.DS_Store
+._*
+.vscode
+build
+dist
+*.egg-info

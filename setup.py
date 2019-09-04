@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+#-*- coding: utf-8 -*-
+
 '''
     pip setup file
     --------------
@@ -67,8 +70,7 @@ setuptools.setup(
     author='Rony Novianto',
     author_email='rony@ronynovianto.com',
     license='BSD',
-    classifiers=\
-    [
+    classifiers=[
         'Environment :: MacOS X',
         'Environment :: Web Environment',
         'Environment :: Win32 (MS Windows)',
@@ -91,8 +93,7 @@ setuptools.setup(
     include_package_data=True,
     package_dir=package_dir,
     packages=setuptools.find_packages(package_dir['']),
-    data_files=\
-    [
+    data_files=[
         ('asmo', get_data_files(['*.rst', 'LICENSE.txt'])),
         ('asmo/examples', get_data_files(['examples/*.py'])),
         ('asmo/virtualenv', get_data_files(['virtualenv/*.py'])),
